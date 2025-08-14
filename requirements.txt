@@ -1,0 +1,8 @@
+faster-whisper
+resemblyzer
+webrtcvad
+numpy
+scikit-learn
+soundfile
+typer[all]
+openai>=1.0.0
