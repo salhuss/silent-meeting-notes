@@ -11,6 +11,7 @@ from .export import (
     segments_to_srt,
     write_speaker_md,
     write_notes_md,
+    write_ics_from_actions,
 )
 
 app = typer.Typer(help="Silent Meeting Notes CLI")
@@ -29,13 +30,17 @@ def main(
         "2-4",
         help="Speaker cluster range, e.g. '2-5' or a fixed '2'"
     ),
+    calendar: bool = typer.Option(False, "--calendar/--no-calendar", help="Export action items to an .ics calendar file"),
+    tz: str = typer.Option("America/New_York", help="TZID for calendar events"),
+    due_hour: int = typer.Option(17, help="Hour of day (0-23) to schedule due events"),
 ):
     """
-    v0.3:
+    v0.4:
     1) Transcribe audio with faster-whisper (txt/json/SRT)
     2) Diarize with resemblyzer + KMeans → speaker-attributed turns
     3) LLM structuring → summary, decisions, action items
     4) Exports: transcript.*, speaker_transcript.md, notes.md/json
+    5) Optional: --calendar to emit action_items.ics
     """
     out_p = Path(out)
     out_p.mkdir(parents=True, exist_ok=True)
@@ -61,6 +66,16 @@ def main(
     write_json(out_p / "notes.json", notes)
     write_notes_md(out_p / "notes.md", notes)
 
+    # 4) Optional calendar export
+    if calendar:
+        actions = notes.get("actions", [])
+        if actions:
+            ics_path = out_p / "action_items.ics"
+            write_ics_from_actions(ics_path, actions, tzid=tz, due_hour=due_hour)
+            typer.echo(f"📅 Calendar: {ics_path.name}")
+        else:
+            typer.echo("📅 Calendar: no actions found; skipping .ics")
+
     typer.echo(f"✅ Done → {out_p.resolve()}")
     emitted = [
         "transcript.txt",
@@ -70,6 +85,7 @@ def main(
         "speaker_transcript.md",
         "notes.json",
         "notes.md",
+        "action_items.ics" if calendar and notes.get('actions') else None,
     ]
     for f in filter(None, emitted):
         typer.echo(f"   - {f}")

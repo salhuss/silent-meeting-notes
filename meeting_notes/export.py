@@ -1,6 +1,61 @@
 # meeting_notes/export.py
 from pathlib import Path
 import json
+from datetime import datetime, timedelta
+import uuid
+
+def _ical_dt_local_str(dt: datetime) -> str:
+    # Format like 20250815T170000
+    return dt.strftime("%Y%m%dT%H%M%S")
+
+def _sanitize_summary(text: str) -> str:
+    return (text or "").replace("\n", " ").strip()
+
+def write_ics_from_actions(path: Path, actions: list, tzid: str = "America/New_York", due_hour: int = 17) -> None:
+    """
+    Write an .ics file with one VEVENT per action item.
+    Assumes each action has: {owner, task, suggested_due_date (YYYY-MM-DD)}.
+    - DTSTART set to due date at due_hour local time.
+    - DTEND set to one hour after.
+    """
+    now_utc = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "PRODID:-//SilentMeetingNotes//ActionItems//EN",
+        "VERSION:2.0",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+    ]
+
+    for a in actions or []:
+        owner = a.get("owner", "S1")
+        task = a.get("task", "(unspecified task)")
+        due_s = a.get("suggested_due_date", "")
+        try:
+            due_dt = datetime.strptime(due_s, "%Y-%m-%d")
+        except Exception:
+            # If no/invalid date, default to tomorrow
+            due_dt = datetime.now() + timedelta(days=1)
+
+        start_local = due_dt.replace(hour=due_hour, minute=0, second=0, microsecond=0)
+        end_local = start_local + timedelta(hours=1)
+
+        uid = f"{uuid.uuid4()}@silent-meeting-notes"
+        summary = _sanitize_summary(f"{owner}: {task}")
+
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{now_utc}",
+            f"SUMMARY:{summary}",
+            f"DTSTART;TZID={tzid}:{_ical_dt_local_str(start_local)}",
+            f"DTEND;TZID={tzid}:{_ical_dt_local_str(end_local)}",
+            "STATUS:CONFIRMED",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    write_text(path, "\n".join(lines) + "\n")
 
 def write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
