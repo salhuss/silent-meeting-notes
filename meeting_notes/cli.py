@@ -4,11 +4,13 @@ from pathlib import Path
 
 from .asr import transcribe_file
 from .diarize import diarize_file, attach_speakers
+from .summarize import structure_notes
 from .export import (
     write_text,
     write_json,
     segments_to_srt,
     write_speaker_md,
+    write_notes_md,
 )
 
 app = typer.Typer(help="Silent Meeting Notes CLI")
@@ -29,19 +31,18 @@ def main(
     ),
 ):
     """
-    v0.2:
+    v0.3:
     1) Transcribe audio with faster-whisper (txt/json/SRT)
     2) Diarize with resemblyzer + KMeans → speaker-attributed turns
-    3) Export speaker-marked Markdown
-    4) Placeholder notes.md/json (LLM structuring next)
+    3) LLM structuring → summary, decisions, action items
+    4) Exports: transcript.*, speaker_transcript.md, notes.md/json
     """
     out_p = Path(out)
     out_p.mkdir(parents=True, exist_ok=True)
 
+    # 1) ASR
     typer.echo("🎙️ Transcribing…")
     asr = transcribe_file(input, model_size=model)
-
-    # 1) Raw transcript exports
     write_text(out_p / "transcript.txt", asr["text"])
     write_json(out_p / "transcript.json", asr)
     if srt:
@@ -51,14 +52,14 @@ def main(
     typer.echo("🧑‍🤝‍🧑 Diarizing (speaker clustering)…")
     diar = diarize_file(input, speakers=speakers)
     turns = attach_speakers(asr["segments"], diar)
-
-    # 3) Speaker-attributed exports
     write_json(out_p / "speaker_turns.json", turns)
     write_speaker_md(out_p / "speaker_transcript.md", turns)
 
-    # 4) Placeholder notes (to be replaced by LLM structuring)
-    write_text(out_p / "notes.md", "# Notes\n\n(Next: summary, decisions, actions)\n")
-    write_json(out_p / "notes.json", {"status": "todo"})
+    # 3) LLM structuring → Notes
+    typer.echo("🧠 Structuring notes with LLM…")
+    notes = structure_notes(turns)
+    write_json(out_p / "notes.json", notes)
+    write_notes_md(out_p / "notes.md", notes)
 
     typer.echo(f"✅ Done → {out_p.resolve()}")
     emitted = [
@@ -67,8 +68,8 @@ def main(
         "transcript.srt" if srt else None,
         "speaker_turns.json",
         "speaker_transcript.md",
-        "notes.md",
         "notes.json",
+        "notes.md",
     ]
     for f in filter(None, emitted):
         typer.echo(f"   - {f}")

@@ -38,3 +38,43 @@ def write_speaker_md(path: Path, turns):
     lines.append("")  # trailing newline
     write_text(path, "\n".join(lines))
 
+def _md_section(title: str) -> str:
+    return f"## {title}\n"
+
+def write_notes_md(path: Path, notes: dict) -> None:
+    """
+    Pretty Markdown renderer for the structured notes.
+    Expects keys: summary [list], decisions [list], actions [list of {owner, task, suggested_due_date}]
+    """
+    lines = ["# Meeting Notes\n"]
+    # Summary
+    lines.append(_md_section("Summary"))
+    if notes.get("summary"):
+        for b in notes["summary"]:
+            lines.append(f"- {b}")
+    else:
+        lines.append("_(none)_")
+    lines.append("")
+
+    # Decisions
+    lines.append(_md_section("Decisions"))
+    if notes.get("decisions"):
+        for d in notes["decisions"]:
+            lines.append(f"- {d}")
+    else:
+        lines.append("_(none)_")
+    lines.append("")
+
+    # Action Items
+    lines.append(_md_section("Action Items"))
+    if notes.get("actions"):
+        for a in notes["actions"]:
+            owner = a.get("owner", "S1")
+            task = a.get("task", "").strip() or "(unspecified)"
+            due = a.get("suggested_due_date", "")
+            lines.append(f"- **{owner}** — {task}" + (f" _(due {due})_" if due else ""))
+    else:
+        lines.append("_(none)_")
+    lines.append("")
+
+    write_text(path, "\n".join(lines))
