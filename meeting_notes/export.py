@@ -29,3 +29,12 @@ def segments_to_srt(segments):
         lines.append(text)
         lines.append("")  # blank line
     return "\n".join(lines).strip() + "\n"
+
+# meeting_notes/export.py  (append these helpers)
+def write_speaker_md(path: Path, turns):
+    lines = ["# Speaker Transcript\n"]
+    for t in turns:
+        lines.append(f"**{t['speaker']}** [{srt_timestamp(t['start'])}–{srt_timestamp(t['end'])}]: {t['text']}")
+    lines.append("")  # trailing newline
+    write_text(path, "\n".join(lines))
+
